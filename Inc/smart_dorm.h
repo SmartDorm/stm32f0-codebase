@@ -16,6 +16,7 @@ typedef enum {idle, music, connect, err} State;
 void app_main();
 void init();
 State idle_s();
+void fetch(char * command);
 
 #endif /* SMART_DORM_H_ */
 
