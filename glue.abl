@@ -1,0 +1,23 @@
+MODULE multiplex
+
+TITLE 'LED and fan control'
+
+DECLARATIONS
+
+RED, YELLOW, GREEN pin 21..23 istype 'com';
+FAN_OUT pin 20 istype 'com';
+
+LED1, LED0 pin 3..2
+FAN_PWM, FAN_EN pin 5..4
+
+
+EQUATIONS
+
+FAN_OUT = FAN_PWM & FAN_EN
+
+RED = !LED1 & !LED0
+BLUE = !LED1 & LED0
+GREEN = LED1 & !LED0
+
+
+END
