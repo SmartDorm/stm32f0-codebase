@@ -43,6 +43,7 @@ void clear_screen()
 void lcd_write(char *string)
 {
     HAL_SPI_Transmit(&hspi1, string, strlen(string), 100);
+    HAL_Delay(100);
 }
 
 void position_cursor(int row, int column)

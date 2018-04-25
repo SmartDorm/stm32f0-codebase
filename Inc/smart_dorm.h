@@ -11,12 +11,24 @@
 // typedefs
 typedef enum {false = 0, true} bool;
 typedef enum {idle, music, connect, err} State;
+typedef enum {weather, twitter, calendar, final} DisplayInfo;
+
+typedef struct info {
+    char headline[40];
+    int high;
+    int low;
+    int current;
+} Info;
 
 // function definitions
 void app_main();
 void init();
 State idle_s();
 void fetch(char * command);
+void error_handler();
+
+#include "real_time.h"
+#include "lcd.h"
 
 #endif /* SMART_DORM_H_ */
 
