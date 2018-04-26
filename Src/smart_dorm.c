@@ -12,6 +12,7 @@
 #include "real_time.h"
 #include "pi_client.h"
 #include "alarm.h"
+#include "bluetooth_client.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -68,6 +69,7 @@ uint8_t command_UPDATE[4] = {'U', 'P', 'D', 'T'};
 uint8_t command_TIME[4] = {'T', 'I', 'M', 'E'};
 char buf[80];
 char single[1];
+char single2[1];
 int posb = 0; // USART1
 int posc = 0; // USART2
 bool received = false;
@@ -79,7 +81,7 @@ bool change_display = false;
 void app_main() {
 
     init();
-
+    HAL_UART_Receive_IT(&huart2, single2, 1);
     alarm_add(3, 19);
 
     while(true) {
@@ -121,7 +123,9 @@ void app_main() {
             }
 
             if(command) {
-                // Bluetooth client
+                command = false;
+                posc = 0;
+                interpret_command(control_word);
             }
 
 //            if(change_fan) {
@@ -354,9 +358,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart) {
 
     if(huart->Instance == USART2) {
         __YELLOW_ON();
-        control_word[posc++] = single[0];
-        if(single[0] == '\n' || single[0] == '\0') {
+        control_word[posc++] = single2[0];
+        if(single2[0] == '\n' || single2[0] == '\0') {
             command = true;
+            __YELLOW_OFF();
         } else {
             HAL_UART_Receive_IT(&huart2, (uint8_t *) single, 1);
         }
