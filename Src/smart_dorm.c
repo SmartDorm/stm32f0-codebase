@@ -68,24 +68,14 @@ bool transmit = false;
 bool change_display = false;
 
 void app_main() {
-    // write_weather();
-//    for(int i = 0; i < 10; i++) {
-//        current_info.headline[i] = i + 'A';
-//    }
-//    current_info.headline[10] = '\0';
-    // lcd_write(current_info.headline);
-    //write_headlines();
-    //init();
+
     init();
-    // check for state. every function must be able to return a state.
+
     while(true) {
-            if(state == idle) {
+            if(state == music) {
 
-            } else if(state == music) {
-
-            } else if(state == connect) {
-
-            } else if(state == err) {
+            }
+            if(state == err) {
                 init();
             }
 
@@ -267,7 +257,7 @@ void init() {
     mins = atoi(token); //MINUTE
 
     set_time(hours, mins);
-    set_date(day, month, year);
+    set_date(0, day, month, year);
 
     //fetch();
 
@@ -279,6 +269,8 @@ void init() {
 }
 
 void write_time() {
+    clear_screen();
+    HAL_Delay(100);
     char buf3[17];
     lcd_write(get_time(buf3));
 }
