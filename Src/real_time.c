@@ -10,10 +10,29 @@
 
 extern RTC_HandleTypeDef hrtc;
 
-void set_date(uint8_t day, uint8_t month, uint8_t year)
+void set_date(uint8_t weekday, uint8_t day, uint8_t month, uint8_t year)
 {
     RTC_DateTypeDef date_struct;
 
+    /*
+     * weekday format:
+     * 0 - Sunday
+     * 6- Saturday
+     */
+    if(weekday == 0)
+        date_struct.WeekDay = RTC_WEEKDAY_SUNDAY;
+    else if(weekday == 1)
+        date_struct.WeekDay = RTC_WEEKDAY_MONDAY;
+    else if(weekday == 2)
+        date_struct.WeekDay = RTC_WEEKDAY_TUESDAY;
+    else if(weekday == 3)
+        date_struct.WeekDay = RTC_WEEKDAY_WEDNESDAY;
+    else if(weekday == 4)
+        date_struct.WeekDay = RTC_WEEKDAY_THURSDAY;
+    else if(weekday == 5)
+        date_struct.WeekDay = RTC_WEEKDAY_FRIDAY;
+    else
+        date_struct.WeekDay = RTC_WEEKDAY_SATURDAY;
     date_struct.Month = month;
     date_struct.Year = year % 100;
     date_struct.Date = day;
