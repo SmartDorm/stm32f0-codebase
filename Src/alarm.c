@@ -25,5 +25,31 @@ void update_alarm_value(int indx)
 
 void stop_alarm()
 {
-    HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_8B_R, 0);
+    //HAL_DAC_Stop(&hdac1, DAC_CHANNEL_1);
+    HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
+}
+
+void speaker_off()
+{
+    HAL_DAC_Stop(&hdac1, DAC_CHANNEL_1);
+}
+
+/*
+ * this function will be placed within if(htim->Instance == TIM3)
+ * to make sure that it is only activated by timer 3 in the interrupt callback
+ * the input argument of alarm_counter is a count of 10 us
+ * It returns an int because it will itself update the alarm counter
+ */
+int alarm_control(int alarm_counter)
+{
+    int alarm_index = alarm_counter % 125;
+    update_alarm_value(alarm_index);
+    alarm_counter++;
+
+    if(alarm_counter == 125)
+    {
+        alarm_counter = 0;
+    }
+
+    return alarm_counter;
 }
