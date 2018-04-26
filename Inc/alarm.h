@@ -16,3 +16,7 @@
 void update_alarm_value(int indx);
 
 void stop_alarm();
+
+void speaker_off();
+
+int alarm_control(int alarm_counter);
