@@ -5,10 +5,54 @@
  *      Author: jared
  */
 
+#include "smart_dorm.h"
 #include "alarm.h"
 #include "stm32f0xx_hal.h"
 
+#define __RED_ON() HAL_GPIO_WritePin(GPIOC, GPIO_PIN_2, GPIO_PIN_SET)
+#define MAX_ALARMS 8
+
 extern DAC_HandleTypeDef hdac1;
+Alarm alarms[8];
+
+void alarm_init() {
+    for(int i = 0; i < 8; i++) {
+        alarms[i].hour = -1;
+        alarms[i].minute = -1;
+    }
+}
+
+void alarm_search(int hour, int minute) {
+    for(int i = 0; i < MAX_ALARMS; i++) {
+        if(hour == alarms[i].hour && minute == alarms[i].minute) {
+            alarm_trigger();
+        }
+    }
+}
+
+void alarm_trigger() {
+    __RED_ON();
+}
+
+void alarm_add(int hour, int minute) {
+    for(int i = 0; i < MAX_ALARMS; i++) {
+        if(alarms[i].hour == -1) {
+            alarms[i].hour = hour;
+            alarms[i].minute = minute;
+            break;
+        }
+    }
+}
+
+void alarm_delete(int hour, int minute) {
+    for(int i = 0; i < MAX_ALARMS; i++) {
+        if(alarms[i].hour == hour && alarms[i].minute == minute) {
+            alarms[i].hour = -1;
+            alarms[i].minute = -1;
+        }
+    }
+}
+
 
 void update_alarm_value(int indx)
 {

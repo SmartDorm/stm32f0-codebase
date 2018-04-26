@@ -18,8 +18,13 @@ typedef struct info {
     int high;
     int low;
     int current;
-    char condition[8];
+    char  * condition;
 } Info;
+
+typedef struct alarm {
+    int hour;
+    int minute;
+} Alarm;
 
 // function definitions
 void app_main();

@@ -11,6 +11,7 @@
 #include "lcd.h"
 #include "real_time.h"
 #include "pi_client.h"
+#include "alarm.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -21,6 +22,7 @@ extern SPI_HandleTypeDef hspi1;
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
 
 // Fan speed defs
 #define FAN_HI  100
@@ -44,11 +46,18 @@ extern UART_HandleTypeDef huart1;
 // state variables
 int IRQ_Count = 0;
 int secs = 0;
-int last_fan_state = FAN_OFF;
-int fan_change_time = 0;
+
+
 int last_update = 0;
-bool change_fan = false;
 bool update = false;
+
+
+int fan_change_time = 0;
+int last_fan_state = FAN_OFF;
+bool change_fan = false;
+
+int hour_int = -1;
+int min_int = -1;
 
 State state = idle;
 Info current_info = {.high = 10, .low = 1, .current = 5, .headline = "Florida man kills dog"};
@@ -71,6 +80,8 @@ void app_main() {
 
     init();
 
+    alarm_add(3, 19);
+
     while(true) {
             if(state == music) {
 
@@ -81,6 +92,7 @@ void app_main() {
 
             if(update) {
                 update = false;
+                fetch();
             }
 
             if(received) {
@@ -92,13 +104,24 @@ void app_main() {
                 HAL_Delay(100);
                 posb = 0;
             }
+
             if(secs == 60) {
                 secs = 0;
-                // clock_display();
+                int_time(&hour_int, &min_int);
+                alarm_search(hour_int, min_int);
+                if(min_int - last_update > 5 || min_int - last_update < 0) {
+                    last_update = min_int;
+                    fetch();
+                }
             }
+
             if(change_display) {
                 displayNext();
                 change_display = false;
+            }
+
+            if(command) {
+                // Bluetooth client
             }
 
 //            if(change_fan) {
@@ -153,8 +176,8 @@ void write_headlines() {
     clear_screen();
     HAL_Delay(100);
     lcd_write(current_info.headline);
-    HAL_Delay(2000);
-    for(int i = 0; i < 25; i++) {
+    HAL_Delay(3000);
+    for(int i = 0; i < 24; i++) {
         shift(LEFT);
         HAL_Delay(1000);
     }
@@ -182,30 +205,36 @@ void fetch() {
     // RETURN FORMAT:
     //   CURRENT,HIGH,LOW,HEADLINE
     __YELLOW_ON();
-    __RED_ON();
     HAL_UART_Transmit_IT(&huart1, command_UPDATE, 4);
     while(!transmit);
     transmit = false;
     HAL_Delay(100);
-    HAL_UART_Receive_IT(&huart1, single, 1);
+
+    HAL_UART_Receive_IT(&huart1, (uint8_t *) single, 1);
     while(!received);
-    strtok(buf, ",");
+    received = false;
+    posb = 0;
+
     char * token;
     int temp;
     // Update weather
-    token = strtok(NULL, ",");
+    token = strtok(buf, ",");
     temp = atoi(token);
     current_info.current = temp;
     token = strtok(NULL, ",");
+    temp = atoi(token);
     current_info.high = temp;
     token = strtok(NULL, ",");
+    temp = atoi(token);
     current_info.low = temp;
+
     token = strtok(NULL, ",");
+    strcpy(current_info.condition, token);
 
     //headline
     token = strtok(NULL, ",");
     strcpy(current_info.headline, token);
-    __RED_OFF();
+    __YELLOW_OFF();
 }
 
 void error_handler() {
@@ -227,23 +256,35 @@ void init() {
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, FAN_OFF);
 
+    // make allocations
+    current_info.condition = malloc(8);
+    current_info.headline = malloc(26);
+
     // request time
-//    HAL_UART_Transmit(&huart1, (uint8_t *) command_TIME, 4, 10);
-//    HAL_UART_Receive_IT(&huart1, (uint8_t *) single, 1);
-//    while(!received);
-//    received = false;
+    HAL_UART_Transmit_IT(&huart1, (uint8_t *) command_TIME, 4);
+    while(!transmit);
+    transmit = false;
+    HAL_UART_Receive_IT(&huart1, (uint8_t *) single, 1);
+    while(!received);
+    received = false;
+    posb = 0;
+
+    if(!strcmp(buf, "ERR\n")) {
+        state = err;
+        return;
+    }
 
     // set clock
-    strtok(buf, ",");
     char * token;
-    uint8_t year;
+
+    int year;
     uint8_t month;
     uint8_t day;
     uint8_t hours;
     uint8_t mins;
     // YYYY/MM/DD
-    token = strtok(NULL, ",");
-    year = atoi(token); // YEAR
+    token = strtok(buf, ","); // YEAR
+    year = atoi(token);
     token = strtok(NULL, ",");
     month = atoi(token); // MONTH
     token = strtok(NULL, ",");
@@ -259,8 +300,9 @@ void init() {
     set_time(hours, mins);
     set_date(0, day, month, year);
 
-    //fetch();
-
+    fetch();
+    alarm_init();
+    HAL_Delay(100);
     write_time();
 
     HAL_Delay(100);
@@ -304,8 +346,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart) {
         if(single[0] != '\n' && single[0] != '\0') {
             HAL_UART_Receive_IT(&huart1, (uint8_t *) single, 1);
         } else {
-        //buf[6] = "\0";
+            buf[posb] = '\0';
             received = true;
+            __YELLOW_OFF();
         }
     }
 
@@ -314,6 +357,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart) {
         control_word[posc++] = single[0];
         if(single[0] == '\n' || single[0] == '\0') {
             command = true;
+        } else {
+            HAL_UART_Receive_IT(&huart2, (uint8_t *) single, 1);
         }
     }
 }

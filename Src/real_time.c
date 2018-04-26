@@ -103,3 +103,17 @@ char *get_time(char *time_str)
 
     return time_str;
 }
+
+void int_time(int * hours, int * minutes) {
+    RTC_TimeTypeDef time_struct;
+    RTC_DateTypeDef date_struct;
+
+    HAL_RTC_GetTime(&hrtc, &time_struct, RTC_FORMAT_BIN);
+    HAL_RTC_GetDate(&hrtc, &date_struct, RTC_FORMAT_BIN);
+
+    uint8_t hr = time_struct.Hours;
+    uint8_t min = time_struct.Minutes;
+
+    (*hours) = hr;
+    (*minutes) = min;
+}
