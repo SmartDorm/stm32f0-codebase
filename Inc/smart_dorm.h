@@ -11,21 +11,26 @@
 // typedefs
 typedef enum {false = 0, true} bool;
 typedef enum {idle, music, connect, err} State;
-typedef enum {weather, twitter, calendar, final} DisplayInfo;
+typedef enum {weather, news, calendar, final} DisplayInfo;
 
 typedef struct info {
-    char headline[40];
+    char * headline;
     int high;
     int low;
     int current;
+    char condition[8];
 } Info;
 
 // function definitions
 void app_main();
 void init();
 State idle_s();
-void fetch(char * command);
+void fetch();
 void error_handler();
+void write_weather();
+void displayNext();
+void write_headlines();
+void write_time();
 
 #include "real_time.h"
 #include "lcd.h"

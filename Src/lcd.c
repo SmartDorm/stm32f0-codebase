@@ -60,6 +60,11 @@ void position_cursor(int row, int column)
     uint8_t row_pos = 0x40 * (row - 1); //row is line 1 / line 2
     uint8_t position = row_pos + column - 1;
     HAL_SPI_Transmit(&hspi1, &position, sizeof(position), 100);
+    uint8_t disable[2] = {0xFE, 0x4C};
+    HAL_SPI_Transmit(&hspi1, disable, 2, 100);
+}
 
-
+void shift(uint8_t dir) {
+    uint8_t command[2] = {0xFE, dir};
+    HAL_SPI_Transmit(&hspi1, command, 2, 100);
 }

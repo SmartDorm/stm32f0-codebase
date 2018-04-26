@@ -11,6 +11,8 @@
 #include "lcd.h"
 #include "real_time.h"
 #include "pi_client.h"
+#include <string.h>
+#include <stdlib.h>
 
 // Import all peripheral structures
 extern DAC_HandleTypeDef hdac1;
@@ -27,6 +29,9 @@ extern UART_HandleTypeDef huart1;
 #define FAN_STATE_PERIOD 10
 
 #define UPDATE_PERIOD 20
+
+#define LEFT 0x55
+#define RIGHT 0x56
 
 // LED state macros
 #define __GREEN_ON() HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_SET)
@@ -46,25 +51,36 @@ bool change_fan = false;
 bool update = false;
 
 State state = idle;
-Info current_info = {.high = 0, .low = 0, .current = 0, .headline[0] = '\0'};
+Info current_info = {.high = 10, .low = 1, .current = 5, .headline = "Florida man kills dog"};
 DisplayInfo displayed = calendar;
 
 // USART Data buffers
+uint8_t command_UPDATE[4] = {'U', 'P', 'D', 'T'};
+uint8_t command_TIME[4] = {'T', 'I', 'M', 'E'};
 char buf[80];
 char single[1];
-int posb = 0;
-int posc = 0;
+int posb = 0; // USART1
+int posc = 0; // USART2
 bool received = false;
 bool command = false;
 char control_word[15];
+bool transmit = false;
+bool change_display = false;
 
 void app_main() {
+    // write_weather();
+//    for(int i = 0; i < 10; i++) {
+//        current_info.headline[i] = i + 'A';
+//    }
+//    current_info.headline[10] = '\0';
+    // lcd_write(current_info.headline);
+    //write_headlines();
+    //init();
     init();
-    HAL_UART_Receive_IT(&huart1, (uint8_t *) buf, 6);
     // check for state. every function must be able to return a state.
     while(true) {
             if(state == idle) {
-                // state = idle_s();
+
             } else if(state == music) {
 
             } else if(state == connect) {
@@ -84,11 +100,15 @@ void app_main() {
                 HAL_Delay(100);
                 lcd_write(buf);
                 HAL_Delay(100);
-                pos = 0;
+                posb = 0;
             }
             if(secs == 60) {
                 secs = 0;
-                clock_display();
+                // clock_display();
+            }
+            if(change_display) {
+                displayNext();
+                change_display = false;
             }
 
 //            if(change_fan) {
@@ -123,12 +143,60 @@ void app_main() {
 void displayNext() {
     // IDEA: Make more display states (Current, high, low, etc.)
     // UPDATE this state every state display change
+    // __ F CONDITION
+    // HI: __ LO: __
+    if(displayed == calendar) {
+        // display 2-line weather
+        displayed = weather;
+        write_weather();
+
+    } else if(displayed == weather) {
+        displayed = news;
+        write_headlines();
+    } else {
+        displayed = calendar;
+        write_time();
+    }
+}
+
+void write_headlines() {
+    clear_screen();
+    HAL_Delay(100);
+    lcd_write(current_info.headline);
+    HAL_Delay(2000);
+    for(int i = 0; i < 25; i++) {
+        shift(LEFT);
+        HAL_Delay(1000);
+    }
+}
+
+void write_weather() {
+    char weather1[17];
+    char weather2[17];
+    sprintf(weather1, "%d F  %s", current_info.current, current_info.condition);
+    sprintf(weather2, "HI: %d, LO: %d", current_info.high, current_info.low);
+
+    clear_screen();
+    HAL_Delay(100);
+    position_cursor(1, 1);
+    HAL_Delay(100);
+    lcd_write(weather1);
+    HAL_Delay(100);
+    position_cursor(2, 1);
+    HAL_Delay(100);
+    lcd_write(weather2);
+    HAL_Delay(100);
 }
 
 void fetch() {
     // RETURN FORMAT:
     //   CURRENT,HIGH,LOW,HEADLINE
-    HAL_UART_Transmit_IT(&huart1, "UPDT" ,1);
+    __YELLOW_ON();
+    __RED_ON();
+    HAL_UART_Transmit_IT(&huart1, command_UPDATE, 4);
+    while(!transmit);
+    transmit = false;
+    HAL_Delay(100);
     HAL_UART_Receive_IT(&huart1, single, 1);
     while(!received);
     strtok(buf, ",");
@@ -147,6 +215,7 @@ void fetch() {
     //headline
     token = strtok(NULL, ",");
     strcpy(current_info.headline, token);
+    __RED_OFF();
 }
 
 void error_handler() {
@@ -167,10 +236,51 @@ void init() {
     HAL_TIM_Base_Start_IT(&htim2);
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, FAN_OFF);
-    lcd_write("Start!");
+
+    // request time
+//    HAL_UART_Transmit(&huart1, (uint8_t *) command_TIME, 4, 10);
+//    HAL_UART_Receive_IT(&huart1, (uint8_t *) single, 1);
+//    while(!received);
+//    received = false;
+
+    // set clock
+    strtok(buf, ",");
+    char * token;
+    uint8_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hours;
+    uint8_t mins;
+    // YYYY/MM/DD
+    token = strtok(NULL, ",");
+    year = atoi(token); // YEAR
+    token = strtok(NULL, ",");
+    month = atoi(token); // MONTH
+    token = strtok(NULL, ",");
+    day = atoi(token); // DAY
+
+
+    //HH:MM
+    token = strtok(NULL, ",");
+    hours = atoi(token); //HOUR
+    token = strtok(NULL, ",");
+    mins = atoi(token); //MINUTE
+
+    set_time(hours, mins);
+    set_date(day, month, year);
+
+    //fetch();
+
+    write_time();
+
     HAL_Delay(100);
     __YELLOW_OFF();
     __GREEN_ON();
+}
+
+void write_time() {
+    char buf3[17];
+    lcd_write(get_time(buf3));
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {
@@ -188,8 +298,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {
             change_fan = true;
             fan_change_time = secs;
         }
-        if(secs - last_update == UPDATE_PERIOD) {
-            update = true;
+        if(secs % 15 == 0 && IRQ_Count == 0) {
+            change_display = true;
         }
     }
 }
@@ -218,6 +328,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart) {
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef * huart) {
     if(huart->Instance == USART1) {
-        HAL_UART_Receive_IT(&huart1, (uint8_t *) single, 1);
+        // HAL_UART_Receive_IT(&huart1, (uint8_t *) single, 1);
+        transmit = true;
     }
 }

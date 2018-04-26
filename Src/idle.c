@@ -13,7 +13,7 @@
 // defines
 #define CHANGE 5
 
-typedef enum {weather, twitter, calendar, final} DisplayInfo;
+// typedef enum {weather, twitter, calendar, final} DisplayInfo;
 
 extern UART_HandleTypeDef huart1;
 
@@ -60,6 +60,7 @@ State idle_s() {
 //            }
 //        }
 //    }
+    return idle;
 }
 
 //void fetch(char * command) {
