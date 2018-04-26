@@ -16,6 +16,6 @@
 
 char *get_time(char *time_str);
 
-void set_date(uint8_t day, uint8_t month, uint8_t year);
+void set_date(uint8_t weekday, uint8_t day, uint8_t month, uint8_t year);
 
 void set_time(uint8_t hours, uint8_t minutes);
