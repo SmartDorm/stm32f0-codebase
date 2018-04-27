@@ -15,6 +15,14 @@
 #include "bluetooth_client.h"
 #include <string.h>
 #include <stdlib.h>
+// sine table
+uint32_t values[125] = {512, 537, 563, 588, 614, 639, 664, 688, 712, 735, 758, 780, 802, 823, 843, 862, 880, 898,
+                914, 929, 944, 957, 969, 980, 990, 998, 100, 1012, 1017, 1020, 1022, 1023, 1023, 1022, 1019, 1014,
+                1009, 1002, 994, 985, 975, 963, 951, 937, 922, 906, 889, 871, 852, 833, 812, 791, 769, 747, 724, 700,
+                676, 651, 626, 601, 576, 550, 524, 499, 473, 447, 422, 397, 372, 347, 323, 299, 277, 254, 232, 211,
+                190, 171, 152, 134, 117, 101, 86, 72, 60, 48, 38, 29, 21, 14, 9, 4, 1, 0, 0, 1, 3, 6, 11, 17, 25,
+                33, 43, 54, 66, 79, 94, 109, 125, 143, 161, 180, 200, 221, 243, 265, 288, 311, 335, 359, 384, 409,
+                435, 460, 486};
 
 // Import all peripheral structures
 extern DAC_HandleTypeDef hdac1;
@@ -22,6 +30,7 @@ extern RTC_HandleTypeDef hrtc;
 extern SPI_HandleTypeDef hspi1;
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim3;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 
@@ -47,10 +56,12 @@ extern UART_HandleTypeDef huart2;
 // state variables
 int IRQ_Count = 0;
 int secs = 0;
-
+int alarm_pos = 0;
 
 int last_update = 0;
 bool update = false;
+bool panic = false;
+bool alarm_next = false;
 
 
 int fan_change_time = 0;
@@ -69,92 +80,95 @@ uint8_t command_UPDATE[4] = {'U', 'P', 'D', 'T'};
 uint8_t command_TIME[4] = {'T', 'I', 'M', 'E'};
 char buf[80];
 char single[1];
-char single2[1];
+uint8_t single2[1];
 int posb = 0; // USART1
 int posc = 0; // USART2
 bool received = false;
 bool command = false;
-char control_word[15];
+uint8_t control_word[15];
 bool transmit = false;
 bool change_display = false;
 
 void app_main() {
-
+    // HAL_Delay(30000);
     init();
     HAL_UART_Receive_IT(&huart2, single2, 1);
-    alarm_add(3, 19);
+    //alarm_add(3, 19);
+    //alarm_trigger();
 
+//    sound_alarm();
     while(true) {
-            if(state == music) {
+        if(state == music) {
 
-            }
-            if(state == err) {
-                init();
-            }
+        }
+        if(state == err) {
+            init();
+        }
 
-            if(update) {
-                update = false;
+        if(update) {
+            update = false;
+            fetch();
+        }
+
+        if(received) {
+            received = false;
+            __YELLOW_OFF();
+            clear_screen();
+            HAL_Delay(100);
+            lcd_write(buf);
+            HAL_Delay(100);
+            posb = 0;
+        }
+
+        if(secs == 60) {
+            secs = 0;
+            int_time(&hour_int, &min_int);
+            panic = alarm_search(hour_int, min_int);
+            if(min_int - last_update > 5 || min_int - last_update < 0) {
+                last_update = min_int;
                 fetch();
             }
-
-            if(received) {
-                received = false;
-                __YELLOW_OFF();
-                clear_screen();
-                HAL_Delay(100);
-                lcd_write(buf);
-                HAL_Delay(100);
-                posb = 0;
-            }
-
-            if(secs == 60) {
-                secs = 0;
-                int_time(&hour_int, &min_int);
-                alarm_search(hour_int, min_int);
-                if(min_int - last_update > 5 || min_int - last_update < 0) {
-                    last_update = min_int;
-                    fetch();
-                }
-            }
-
-            if(change_display) {
-                displayNext();
-                change_display = false;
-            }
-
-            if(command) {
-                command = false;
-                posc = 0;
-                interpret_command(control_word);
-            }
-
-//            if(change_fan) {
-//                change_fan = false;
-//                switch(last_fan_state) {
-//                    case FAN_OFF:   clear_screen();
-//                                    HAL_Delay(100);
-//                                    lcd_write("LOW");
-//                                    HAL_Delay(100);
-//                                    last_fan_state = FAN_LO;
-//                    break;
-//
-//                    case FAN_LO:    clear_screen();
-//                                    HAL_Delay(100);
-//                                    lcd_write("HIGH");
-//                                    HAL_Delay(100);
-//                                    last_fan_state = FAN_HI;
-//                    break;
-//
-//                    default:        clear_screen();
-//                                    HAL_Delay(100);
-//                                    lcd_write("OFF");
-//                                    HAL_Delay(100);
-//                                    last_fan_state = FAN_OFF;
-//                    break;
-//                }
-//                __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, last_fan_state);
-//            }
         }
+
+        if(change_display) {
+            displayNext();
+            change_display = false;
+        }
+
+        if(command) {
+            command = false;
+            posc = 0;
+            interpret_command((char *)control_word);
+            HAL_UART_Receive_IT(&huart2, single2, 1);
+        }
+
+        if(panic) {
+            panic = false;
+            sound_alarm();
+        }
+    }
+}
+
+void sound_alarm() {
+    //HAL_TIM_Base_Start_IT(&htim3);
+   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
+//    HAL_DACEx_TriangleWaveGenerate(&hdac1, DAC_CHANNEL_1, 4095);
+   int start = secs;
+    while(secs - start < 10) {
+        if(secs % 2 == 0) {
+            for(int i = 0; i < 4096; i+=16) {
+                HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, i);
+            } for(int i = 4095; i >= 0; i-=16) {
+                HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, i);
+            }
+        }
+    }
+    HAL_DAC_Stop(&hdac1, DAC_CHANNEL_1);
+}
+
+void end_alarm() {
+    HAL_TIM_Base_Stop_IT(&htim3);
+    HAL_DAC_Stop(&hdac1, DAC_CHANNEL_1);
 }
 
 void displayNext() {
@@ -359,11 +373,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart) {
     if(huart->Instance == USART2) {
         __YELLOW_ON();
         control_word[posc++] = single2[0];
-        if(single2[0] == '\n' || single2[0] == '\0') {
+        if(single2[0] != '\n' && single2[0] != '\0') {
+            HAL_UART_Receive_IT(&huart2, (uint8_t *) single2, 1);
+
+        } else {
             command = true;
             __YELLOW_OFF();
-        } else {
-            HAL_UART_Receive_IT(&huart2, (uint8_t *) single, 1);
         }
     }
 }

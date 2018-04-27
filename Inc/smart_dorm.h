@@ -36,6 +36,9 @@ void write_weather();
 void displayNext();
 void write_headlines();
 void write_time();
+void alarm_init();
+void sound_alarm();
+void end_alarm();
 
 #include "real_time.h"
 #include "lcd.h"

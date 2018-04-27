@@ -16,10 +16,9 @@ void speaker_off();
 
 int alarm_control(int alarm_counter);
 
-void alarm_search(int hour, int minute);
+bool alarm_search(int hour, int minute);
 void alarm_add(int hour, int minute);
 void alarm_delete(int hour, int minute);
-void alarm_trigger();
 
 #endif /* ALARM_H_ */
 

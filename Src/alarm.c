@@ -13,6 +13,7 @@
 #define MAX_ALARMS 8
 
 extern DAC_HandleTypeDef hdac1;
+extern TIM_HandleTypeDef htim3;
 Alarm alarms[8];
 
 void alarm_init() {
@@ -22,16 +23,19 @@ void alarm_init() {
     }
 }
 
-void alarm_search(int hour, int minute) {
+bool alarm_search(int hour, int minute) {
     for(int i = 0; i < MAX_ALARMS; i++) {
         if(hour == alarms[i].hour && minute == alarms[i].minute) {
-            alarm_trigger();
+            return true;
         }
     }
+    return false;
 }
 
 void alarm_trigger() {
     __RED_ON();
+    HAL_TIM_Base_Start_IT(&htim3);
+    HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
 }
 
 void alarm_add(int hour, int minute) {
@@ -52,7 +56,6 @@ void alarm_delete(int hour, int minute) {
         }
     }
 }
-
 
 void update_alarm_value(int indx)
 {
