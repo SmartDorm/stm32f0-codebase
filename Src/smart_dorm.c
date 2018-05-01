@@ -15,30 +15,15 @@
 #include "bluetooth_client.h"
 #include <string.h>
 #include <stdlib.h>
-// sine table
-uint32_t values[125] = {512, 537, 563, 588, 614, 639, 664, 688, 712, 735, 758, 780, 802, 823, 843, 862, 880, 898,
-                914, 929, 944, 957, 969, 980, 990, 998, 100, 1012, 1017, 1020, 1022, 1023, 1023, 1022, 1019, 1014,
-                1009, 1002, 994, 985, 975, 963, 951, 937, 922, 906, 889, 871, 852, 833, 812, 791, 769, 747, 724, 700,
-                676, 651, 626, 601, 576, 550, 524, 499, 473, 447, 422, 397, 372, 347, 323, 299, 277, 254, 232, 211,
-                190, 171, 152, 134, 117, 101, 86, 72, 60, 48, 38, 29, 21, 14, 9, 4, 1, 0, 0, 1, 3, 6, 11, 17, 25,
-                33, 43, 54, 66, 79, 94, 109, 125, 143, 161, 180, 200, 221, 243, 265, 288, 311, 335, 359, 384, 409,
-                435, 460, 486};
 
 // Import all peripheral structures
 extern DAC_HandleTypeDef hdac1;
 extern RTC_HandleTypeDef hrtc;
 extern SPI_HandleTypeDef hspi1;
-extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
-
-// Fan speed defs
-#define FAN_HI  100
-#define FAN_LO  80
-#define FAN_OFF 0
-#define FAN_STATE_PERIOD 10
 
 #define UPDATE_PERIOD 20
 
@@ -63,16 +48,11 @@ bool update = false;
 bool panic = false;
 bool alarm_next = false;
 
-
-int fan_change_time = 0;
-int last_fan_state = FAN_OFF;
-bool change_fan = false;
-
 int hour_int = -1;
 int min_int = -1;
 
 State state = idle;
-Info current_info = {.high = 10, .low = 1, .current = 5, .headline = "Florida man kills dog"};
+Info current_info = {.high = 10, .low = 1, .current = 5};
 DisplayInfo displayed = calendar;
 
 // USART Data buffers
@@ -90,17 +70,13 @@ bool transmit = false;
 bool change_display = false;
 
 void app_main() {
-    // HAL_Delay(30000);
+    // HAL_Delay(60000);
     init();
     HAL_UART_Receive_IT(&huart2, single2, 1);
-    //alarm_add(3, 19);
-    //alarm_trigger();
 
-//    sound_alarm();
+
     while(true) {
-        if(state == music) {
 
-        }
         if(state == err) {
             init();
         }
@@ -139,13 +115,14 @@ void app_main() {
             command = false;
             posc = 0;
             interpret_command((char *)control_word);
-            HAL_UART_Receive_IT(&huart2, single2, 1);
+
         }
 
         if(panic) {
             panic = false;
             sound_alarm();
         }
+        HAL_UART_Receive_IT(&huart2, single2, 1);
     }
 }
 
@@ -233,6 +210,11 @@ void fetch() {
     received = false;
     posb = 0;
 
+    if(!strcmp(buf, "ERR\n")) {
+        state = err;
+        return;
+    }
+
     char * token;
     int temp;
     // Update weather
@@ -260,6 +242,7 @@ void error_handler() {
     __RED_ON();
     init();
     __RED_OFF();
+    state = idle;
     app_main();
 }
 
@@ -267,12 +250,11 @@ void init() {
     // Add all starts of peripherals here (i.e. HAL_TIM2_Base_Start_IT)
     // init_time();
     __YELLOW_ON();
+    alarm_init();
     lcd_init();
     clear_screen();
     HAL_Delay(100);
     HAL_TIM_Base_Start_IT(&htim2);
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, FAN_OFF);
 
     // make allocations
     current_info.condition = malloc(8);
@@ -287,10 +269,6 @@ void init() {
     received = false;
     posb = 0;
 
-    if(!strcmp(buf, "ERR\n")) {
-        state = err;
-        return;
-    }
 
     // set clock
     char * token;
@@ -341,14 +319,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {
         if(IRQ_Count == 1000) {
             IRQ_Count = 0;
             secs++;
-        }
-        if(secs > 60000) {
-            secs = 0;
-            fan_change_time = 0;
-        }
-        if(secs - fan_change_time == FAN_STATE_PERIOD) {
-            change_fan = true;
-            fan_change_time = secs;
         }
         if(secs % 15 == 0 && IRQ_Count == 0) {
             change_display = true;

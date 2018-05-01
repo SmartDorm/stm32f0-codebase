@@ -32,12 +32,6 @@ bool alarm_search(int hour, int minute) {
     return false;
 }
 
-void alarm_trigger() {
-    __RED_ON();
-    HAL_TIM_Base_Start_IT(&htim3);
-    HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
-}
-
 void alarm_add(int hour, int minute) {
     for(int i = 0; i < MAX_ALARMS; i++) {
         if(alarms[i].hour == -1) {
